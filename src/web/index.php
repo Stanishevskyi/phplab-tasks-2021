@@ -53,7 +53,7 @@ $airports = require './airports.php';
         Filter by first letter:
 
         <?php foreach (getUniqueFirstLetters(require './airports.php') as $letter): ?>
-            <a href="#"><?= $letter ?></a>
+            <a href="?<?= http_build_query(array_merge($_GET, ['filter_by_first_letter' => $letter, 'page' => 1])) ?>"><?= $letter ?></a>
         <?php endforeach; ?>
 
         <a href="/" class="float-right">Reset all filters</a>
@@ -72,10 +72,10 @@ $airports = require './airports.php';
     <table class="table">
         <thead>
         <tr>
-            <th scope="col"><a href="#">Name</a></th>
-            <th scope="col"><a href="#">Code</a></th>
-            <th scope="col"><a href="#">State</a></th>
-            <th scope="col"><a href="#">City</a></th>
+            <th scope="col"><a href="?<?= http_build_query(array_merge($_GET, ['sort' => 'name'])) ?>">Name</a></th>
+            <th scope="col"><a href="?<?= http_build_query(array_merge($_GET, ['sort' => 'code'])) ?>">Code</a></th>
+            <th scope="col"><a href="?<?= http_build_query(array_merge($_GET, ['sort' => 'state'])) ?>">State</a></th>
+            <th scope="col"><a href="?<?= http_build_query(array_merge($_GET, ['sort' => 'city'])) ?>">City</a></th>
             <th scope="col">Address</th>
             <th scope="col">Timezone</th>
         </tr>
@@ -91,11 +91,44 @@ $airports = require './airports.php';
              - when you apply filter_by_state, than filter_by_first_letter (see Filtering task #1) is not reset
                i.e. if you have filter_by_first_letter set you can additionally use filter_by_state
         -->
-        <?php foreach ($airports as $airport): ?>
+        <?php
+            $filteredAirportsByFirstLetter = array_filter($airports, function($value) {
+                if (isset($_GET['filter_by_first_letter'])) {
+                    $firstLetter = $value['name'][0];
+                    return $firstLetter === $_GET['filter_by_first_letter'];
+                } else {
+                    return true;
+                }
+            });
+
+            $filteredAirportsByState = array_filter($filteredAirportsByFirstLetter, function($value) {
+                if (isset($_GET['filter_by_state'])) {
+                    $state = $value['state'];
+                    return $state === $_GET['filter_by_state'];
+                } else {
+                    return true;
+                }
+            });
+
+            if (isset($_GET['sort'])) {
+               usort($filteredAirportsByState, function($a, $b) {
+                   return $a[$_GET['sort']] <=> $b[$_GET['sort']];
+               });
+            }
+
+            $pageResults = $filteredAirportsByState;
+
+            if (isset($_GET['page'])) {
+                $offset = $_GET['page'] == 1 ? 0 : (($_GET['page'] - 1) * 5);
+                $pageResults = array_slice($filteredAirportsByState, $offset, 5);
+            }
+
+        ?>
+        <?php foreach ($pageResults as $airport): ?>
         <tr>
             <td><?= $airport['name'] ?></td>
             <td><?= $airport['code'] ?></td>
-            <td><a href="#"><?= $airport['state'] ?></a></td>
+            <td><a href="?<?= http_build_query(array_merge($_GET, ['filter_by_state' => $airport['state'], 'page' => 1])) ?>"><?= $airport['state'] ?></a></td>
             <td><?= $airport['city'] ?></td>
             <td><?= $airport['address'] ?></td>
             <td><?= $airport['timezone'] ?></td>
@@ -115,9 +148,9 @@ $airports = require './airports.php';
     -->
     <nav aria-label="Navigation">
         <ul class="pagination justify-content-center">
-            <li class="page-item active"><a class="page-link" href="#">1</a></li>
-            <li class="page-item"><a class="page-link" href="#">2</a></li>
-            <li class="page-item"><a class="page-link" href="#">3</a></li>
+            <li class="page-item active"><a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 1])) ?>">1</a></li>
+            <li class="page-item"><a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 2])) ?>">2</a></li>
+            <li class="page-item"><a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 3])) ?>">3</a></li>
         </ul>
     </nav>
 
