@@ -2,13 +2,18 @@
 /**
  * Connect to DB
  */
+/** @var \PDO $pdo */
+require_once './pdo_ini.php';
 
 /**
  * SELECT the list of unique first letters using https://www.w3resource.com/mysql/string-functions/mysql-left-function.php
  * and https://www.w3resource.com/sql/select-statement/queries-with-distinct.php
  * and set the result to $uniqueFirstLetters variable
  */
-$uniqueFirstLetters = ['A', 'B', 'C'];
+$sth = $pdo->prepare('SELECT DISTINCT LEFT(name, 1) AS unique_first_letter FROM airports ORDER BY unique_first_letter');
+$sth->setFetchMode(\PDO::FETCH_COLUMN,  0);
+$sth->execute();
+$uniqueFirstLetters = $sth->fetchAll();
 
 // Filtering
 /**
@@ -47,7 +52,45 @@ $uniqueFirstLetters = ['A', 'B', 'C'];
  *
  * For city_name and state_name fields you can use alias https://www.mysqltutorial.org/mysql-alias/
  */
-$airports = [];
+$query = "
+    SELECT airports.*, states.name as `state`, cities.name as `city` FROM `airports` 
+    INNER JOIN states ON airports.state_id = states.id 
+    INNER JOIN cities ON airports.city_id = cities.id";
+
+if (isset($_GET['filter_by_first_letter'])) {
+    $firstLetter = $_GET['filter_by_first_letter'];
+    $query .= " WHERE airports.name LIKE '$firstLetter%' ";
+}
+
+if (isset($_GET['filter_by_state'])) {
+    $operator = isset($_GET['filter_by_first_letter']) ? ' AND ' : ' WHERE ';
+    $query .= $operator;
+
+    $stateName = $_GET['filter_by_state'];
+    $query .= "states.name = '$stateName'";
+}
+
+if (isset($_GET['sort'])) {
+    $sortColumn = $_GET['sort'];
+
+    if ($sortColumn === 'state') {
+        $query .= " ORDER BY states.name ";
+    } elseif ($sortColumn === 'city') {
+        $query .= " ORDER BY cities.name ";
+    } else {
+        $query .= " ORDER BY airports.$sortColumn ";
+    }
+}
+
+if (isset($_GET['page'])) {
+    $offset = $_GET['page'] == 1 ? 0 : (($_GET['page'] - 1) * 5);
+    $query .= " LIMIT $offset, 5 ";
+}
+
+$sth = $pdo->prepare($query);
+$sth->setFetchMode(\PDO::FETCH_ASSOC);
+$sth->execute();
+$airports = $sth->fetchAll();
 ?>
 <!doctype html>
 <html lang="en">
@@ -78,7 +121,7 @@ $airports = [];
         Filter by first letter:
 
         <?php foreach ($uniqueFirstLetters as $letter): ?>
-            <a href="#"><?= $letter ?></a>
+            <a href="?<?= http_build_query(array_merge($_GET, ['filter_by_first_letter' => $letter, 'page' => 1])) ?>"><?= $letter ?></a>
         <?php endforeach; ?>
 
         <a href="/" class="float-right">Reset all filters</a>
@@ -97,10 +140,10 @@ $airports = [];
     <table class="table">
         <thead>
         <tr>
-            <th scope="col"><a href="#">Name</a></th>
-            <th scope="col"><a href="#">Code</a></th>
-            <th scope="col"><a href="#">State</a></th>
-            <th scope="col"><a href="#">City</a></th>
+            <th scope="col"><a href="?<?= http_build_query(array_merge($_GET, ['sort' => 'name'])) ?>">Name</a></th>
+            <th scope="col"><a href="?<?= http_build_query(array_merge($_GET, ['sort' => 'code'])) ?>">Code</a></th>
+            <th scope="col"><a href="?<?= http_build_query(array_merge($_GET, ['sort' => 'state'])) ?>">State</a></th>
+            <th scope="col"><a href="?<?= http_build_query(array_merge($_GET, ['sort' => 'city'])) ?>">City</a></th>
             <th scope="col">Address</th>
             <th scope="col">Timezone</th>
         </tr>
@@ -117,14 +160,14 @@ $airports = [];
                i.e. if you have filter_by_first_letter set you can additionally use filter_by_state
         -->
         <?php foreach ($airports as $airport): ?>
-        <tr>
-            <td><?= $airport['name'] ?></td>
-            <td><?= $airport['code'] ?></td>
-            <td><a href="#"><?= $airport['state_name'] ?></a></td>
-            <td><?= $airport['city_name'] ?></td>
-            <td><?= $airport['address'] ?></td>
-            <td><?= $airport['timezone'] ?></td>
-        </tr>
+            <tr>
+                <td><?= $airport['name'] ?></td>
+                <td><?= $airport['code'] ?></td>
+                <td><a href="?<?= http_build_query(array_merge($_GET, ['filter_by_state' => $airport['state'], 'page' => 1])) ?>"><?= $airport['state'] ?></a></td>
+                <td><?= $airport['city'] ?></td>
+                <td><?= $airport['address'] ?></td>
+                <td><?= $airport['timezone'] ?></td>
+            </tr>
         <?php endforeach; ?>
         </tbody>
     </table>
@@ -140,9 +183,9 @@ $airports = [];
     -->
     <nav aria-label="Navigation">
         <ul class="pagination justify-content-center">
-            <li class="page-item active"><a class="page-link" href="#">1</a></li>
-            <li class="page-item"><a class="page-link" href="#">2</a></li>
-            <li class="page-item"><a class="page-link" href="#">3</a></li>
+            <li class="page-item active"><a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 1])) ?>">1</a></li>
+            <li class="page-item"><a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 2])) ?>">2</a></li>
+            <li class="page-item"><a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 3])) ?>">3</a></li>
         </ul>
     </nav>
 
